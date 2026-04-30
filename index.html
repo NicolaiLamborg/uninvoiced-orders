@@ -172,7 +172,7 @@ const RAW = [
   ["Zurdox","Merchants","All",9,"USD",938.96],
   ["Momentec-CHL","Merchants","All",259,"CAD",6885659.08],
 ];
-const isReady = r => (r[1] === 'Brands' && r[2] === 'completed') || r[1] === 'Merchants';
+const isReady = r => (r.type === 'Brands' && r.stage === 'completed') || r.type === 'Merchants';
 const data    = RAW.map(r => ({ company:r[0], type:r[1], stage:r[2], orders:r[3], currency:r[4], amount:r[5], usd: toUSD(r[5],r[4]) }));
 const momentec = data.filter(d => d.company === 'Momentec-CHL');
 const dataEx   = data.filter(d => d.company !== 'Momentec-CHL');
