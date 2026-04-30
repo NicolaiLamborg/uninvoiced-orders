@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Uninvoiced Orders</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridjs@5.0.2/dist/theme/mermaid.min.css" integrity="sha384-jZvDSsmGB9oGGT/4l9bHXGoAv1OxvG/cFmSo0dZaSqmBgvQTKDBFAMftlXTmMbNW" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/gridjs@5.0.2/dist/gridjs.umd.js" integrity="sha384-/XXDzxe4FsGiAe50i/u9pY/Vy/uX654MHB1xoc1BJNnH1WXHhqHga9g3q5tF4gj7" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; background: #f8f9fa; color: #1a1a2e; padding: 24px; }
+  h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .meta { font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+  .fx-note { font-size: 11px; color: #9ca3af; margin-bottom: 20px; }
+  .kpi-row { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+  .kpi { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 18px; flex: 1; min-width: 160px; }
+  .kpi-label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .kpi-value { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+  .kpi-value span.ready { color: #059669; font-size: 20px; }
+  .kpi-value span.sep { color: #d1d5db; font-weight: 300; margin: 0 3px; }
+  .kpi.highlight { border-color: #10b981; background: #f0fdf4; }
+  .kpi.momentec { border-color: #e5e7eb; background: #fafafa; border-style: dashed; }
+  .kpi.momentec .kpi-value { color: #6b7280; font-size: 20px; }
+  .section { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px; margin-bottom: 24px; }
+  .section-title { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 14px; }
+  .chart-wrap { height: 220px; position: relative; }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 500; background: #f3f4f6; color: #374151; }
+  .completed { background: #d1fae5; color: #065f46; }
+  .in_production { background: #dbeafe; color: #1e40af; }
+  .order_approve { background: #fef3c7; color: #92400e; }
+  .factory_approved { background: #ede9fe; color: #5b21b6; }
+  .submitted_for_factory_review { background: #fce7f3; color: #9d174d; }
+  .submitted_for_customer_review { background: #fce7f3; color: #9d174d; }
+  .customer_approved { background: #ede9fe; color: #5b21b6; }
+  .on_hold { background: #fee2e2; color: #991b1b; }
+  .type-brand { background: #dbeafe; color: #1e40af; }
+  .type-merchant { background: #d1fae5; color: #065f46; }
+  .type-platform { background: #f3f4f6; color: #374151; }
+  .gridjs-wrapper { border: none !important; box-shadow: none !important; }
+  @media print {
+    body { background: #fff; padding: 10px; }
+    .section { page-break-inside: avoid; }
+    .gridjs-search, .gridjs-footer { display: none !important; }
+    @page { margin: 15mm; size: A4 landscape; }
+  }
+</style>
+</head>
+<body>
+<h1>Uninvoiced Orders</h1>
+<p class="meta">stripe_invoice_status = NULL · excl. order_cancel &amp; quote_rejected · Brands per stage, Merchants aggregated</p>
+<p class="fx-note">Data as of <strong>30 Apr 2026</strong> · USD equiv: CAD 0.73 · DKK 0.145 · EUR 1.09 · GBP 1.27 · SEK 0.096 · NOK 0.095 · CHF 1.12</p>
+<div id="kpis" class="kpi-row"></div>
+<div class="section">
+  <div class="section-title">Top Companies by USD Equivalent (excl. Momentec-CHL)</div>
+  <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+</div>
+<div class="section">
+  <div class="section-title">All Uninvoiced Orders</div>
+  <div id="grid"></div>
+</div>
+<script>
+const FX = { USD:1, CAD:0.73, DKK:0.145, EUR:1.09, GBP:1.27, SEK:0.096, NOK:0.095, CHF:1.12 };
+const toUSD = (a, c) => a * (FX[c] || 1);
+const RAW = [
+  ["Cwench Hydration","Brands","in_production",1,"CAD",11832],
+  ["Hummel Pro NA","Brands","in_production",135,"USD",39176.9],
+  ["Hummel Pro NA","Brands","completed",279,"USD",31698.1],
+  ["Hummel Pro NA","Brands","completed",1,"DKK",7191],
+  ["Hummel Pro NA","Brands","order_approve",27,"USD",2381.8],
+  ["Hummel Pro NA","Brands","on_hold",1,"USD",799.2],
+  ["Hummel Pro NA","Brands","submitted_for_factory_review",1,"USD",98.4],
+  ["Hummel Pro NA","Brands","factory_approved",1,"USD",12.3],
+  ["Hummel US","Brands","submitted_for_factory_review",19,"USD",5687.32],
+  ["Hummel US","Brands","order_approve",3,"USD",595.96],
+  ["Hummel US","Brands","factory_approved",1,"USD",139.48],
+  ["Hummel US","Brands","completed",17,"USD",12.3],
+  ["Liftborne AB","Brands","completed",1,"SEK",24230.5],
+  ["SP Apparel","Brands","completed",2,"USD",1293],
+  ["SP Apparel","Brands","in_production",1,"CAD",714.25],
+  ["SP Apparel","Brands","order_approve",1,"USD",423.48],
+  ["SP Apparel","Brands","factory_approved",1,"USD",411.5],
+  ["SP Apparel","Brands","in_production",2,"USD",95.54],
+  ["Teamkits","Brands","completed",1,"GBP",3915.1],
+  ["Teamkits","Brands","in_production",15,"USD",3623.7],
+  ["Teamkits","Brands","completed",25,"USD",1836.39],
+  ["Teamkits","Brands","factory_approved",2,"USD",1463.2],
+  ["Teamkits","Brands","order_approve",16,"USD",623.7],
+  ["Al Anderson's Source for Sports","Merchants","All",13,"CAD",5319.53],
+  ["B2B Cut","Merchants","All",5,"EUR",11525.59],
+  ["B2B Cut","Merchants","All",2,"SEK",24232.64],
+  ["Baseball 360","Merchants","All",6,"CAD",7438.28],
+  ["Battle River Sports Excellence","Merchants","All",3,"CAD",1454],
+  ["Belle River Source For Sports","Merchants","All",3,"CAD",2333.5],
+  ["Brant Sports Excellence","Merchants","All",49,"CAD",27939.9],
+  ["Brian's Source For Sports","Merchants","All",7,"CAD",7403.35],
+  ["Cheap Seat Sports","Merchants","All",1,"CAD",3967.2],
+  ["Chuckies","Merchants","All",3,"CAD",5620],
+  ["Classic Source For Sports","Merchants","All",5,"CAD",4105.55],
+  ["Conway+Banks","Merchants","All",22,"CAD",17983.87],
+  ["Custimoo","Platform only","All",41,"CAD",11930.3],
+  ["Custimoo","Platform only","All",2,"DKK",16030],
+  ["Custimoo","Platform only","All",17,"USD",4957.2],
+  ["Customize.ninja","Merchants","All",18,"SEK",139094.93],
+  ["Doiron Sports Excellence","Merchants","All",14,"CAD",12835.38],
+  ["Duguay","Merchants","All",20,"CAD",10386.93],
+  ["Duguay","Merchants","All",2,"USD",132],
+  ["Dynasty Curling Ltd.","Merchants","All",8,"CAD",7519.3],
+  ["Entripy","Merchants","All",1,"CAD",7145.6],
+  ["EVOLUTION Sports Excellence","Merchants","All",93,"CAD",42952.54],
+  ["EXPÉRIENCE BASEBALL","Merchants","All",4,"CAD",7560.8],
+  ["Extreme Hockey Inc","Merchants","All",1,"CAD",190],
+  ["Front Row Sports US","Merchants","All",2,"USD",1488.51],
+  ["GRAND CHELEM CENTRE DE BALLE INC","Merchants","All",1,"CAD",102],
+  ["Groupe Plante Sports","Merchants","All",3,"CAD",581.6],
+  ["Hockey Lion","Merchants","All",3,"CAD",1922],
+  ["Hockey Shop","Merchants","All",11,"DKK",47017.84],
+  ["Hockeystickman Canada","Merchants","All",10,"USD",3203.67],
+  ["Hockeystickman USA","Merchants","All",3,"USD",3154.73],
+  ["Joy Source for Sports","Merchants","All",8,"CAD",7035.94],
+  ["Keener Jerseys","Merchants","All",1,"CAD",26.6],
+  ["Keystone Source for Sports","Merchants","All",17,"CAD",16140.91],
+  ["keystone sports excellence","Merchants","All",3,"CAD",3139],
+  ["Kix N' Stix","Merchants","All",1,"USD",38.43],
+  ["Ladner's Source for Sports","Merchants","All",5,"CAD",1721],
+  ["Lavoie Source for Sports","Merchants","All",8,"CAD",3857.2],
+  ["London Sports Excellence","Merchants","All",16,"CAD",12863.37],
+  ["Long Island Hockey Co.","Merchants","All",2,"USD",1165.27],
+  ["Magasin Baseball Town","Merchants","All",1,"CAD",1014],
+  ["McTaggarts","Merchants","All",1,"CAD",90],
+  ["Momo Sports Excellence","Merchants","All",1,"CAD",829.68],
+  ["MVP Custom","Merchants","All",5,"EUR",192.94],
+  ["MVS Design","Merchants","All",1,"CAD",144.6],
+  ["Olympiansports","Merchants","All",8,"CAD",1929.13],
+  ["Olympic Source For Sports","Merchants","All",1,"CAD",900],
+  ["Overlander Sports","Merchants","All",2,"CAD",940],
+  ["Play It Again Sports Thunder Bay","Merchants","All",1,"CAD",5000],
+  ["plyr athletics","Merchants","All",2,"CAD",1395],
+  ["Podiumwear","Merchants","All",5,"USD",707.89],
+  ["Prime Time Sports","Merchants","All",1,"USD",48.19],
+  ["Prince Albert Source for Sports","Merchants","All",7,"CAD",1127.9],
+  ["Pringles Sports Excellence","Merchants","All",3,"CAD",1913],
+  ["Prostride Hockey LLC","Merchants","All",1,"USD",58.35],
+  ["PSS Calgary","Merchants","All",4,"CAD",52708],
+  ["royal sports shop ltd.","Merchants","All",3,"CAD",1251.23],
+  ["Sas-kam","Merchants","All",1,"CAD",1225.5],
+  ["Snipe & Celly","Merchants","All",2,"CAD",3176.8],
+  ["Source for Sports North Bay","Merchants","All",3,"CAD",1182.3],
+  ["Source Teamworks","Merchants","All",1,"CAD",32.22],
+  ["Southwest Sports Excellence","Merchants","All",3,"CAD",2497],
+  ["Sport Connection (Eight33)","Merchants","All",2,"CAD",185],
+  ["Sports Excellence HQ","Merchants","All",5,"CAD",1430],
+  ["Sports Plus","Merchants","All",6,"USD",1858.93],
+  ["Sports Rousseau Laval","Merchants","All",4,"CAD",5341],
+  ["Sportwheels Sports Excellence","Merchants","All",20,"CAD",7792.76],
+  ["Stateline sports","Merchants","All",1,"USD",32.14],
+  ["Supreme Sports Inc","Merchants","All",1,"CAD",828.7],
+  ["Sylvestre Sporting Goods Ltd.","Merchants","All",1,"CAD",2850],
+  ["Synergy Prints","Merchants","All",5,"CAD",13281],
+  ["T.Litzen","Merchants","All",2,"CAD",1764.87],
+  ["TBS Source for Sports","Merchants","All",1,"CAD",494],
+  ["TCA Team","Merchants","All",1,"USD",53.58],
+  ["Time-out Sports Excellence","Merchants","All",1,"CAD",160],
+  ["Tonick La Source du Sport","Merchants","All",3,"CAD",21996],
+  ["Western Cycle Source for Sports","Merchants","All",5,"CAD",3129.6],
+  ["Woodbury Sports","Merchants","All",1,"USD",313.58],
+  ["World Of Soccer Canada","Merchants","All",1,"CAD",1154.6],
+  ["Zurdox","Merchants","All",9,"USD",938.96],
+  ["Momentec-CHL","Merchants","All",259,"CAD",6885659.08],
+];
+const isReady = r => (r[1] === 'Brands' && r[2] === 'completed') || r[1] === 'Merchants';
+const data    = RAW.map(r => ({ company:r[0], type:r[1], stage:r[2], orders:r[3], currency:r[4], amount:r[5], usd: toUSD(r[5],r[4]) }));
+const momentec = data.filter(d => d.company === 'Momentec-CHL');
+const dataEx   = data.filter(d => d.company !== 'Momentec-CHL');
+
+const fmtUSD = n => Math.round(n).toLocaleString('en-US');
+const fmtAmt = n => Math.round(n).toLocaleString('en-US');
+
+const allCompanies   = [...new Set(dataEx.map(d => d.company))];
+const readyCompanies = [...new Set(dataEx.filter(isReady).map(d => d.company))];
+const allOrders      = dataEx.reduce((s,d) => s+d.orders, 0);
+const readyOrders    = dataEx.filter(isReady).reduce((s,d) => s+d.orders, 0);
+const allRev         = dataEx.reduce((s,d) => s+d.usd, 0);
+const readyRev       = dataEx.filter(isReady).reduce((s,d) => s+d.usd, 0);
+const momentecUSD    = momentec.reduce((s,d) => s+d.usd, 0);
+const momentecOrders = momentec.reduce((s,d) => s+d.orders, 0);
+
+document.getElementById('kpis').innerHTML = `
+  <div class="kpi"><div class="kpi-label">Companies</div><div class="kpi-value">${allCompanies.length}<span class="sep">/</span><span class="ready">${readyCompanies.length}</span></div></div>
+  <div class="kpi"><div class="kpi-label">Total Orders</div><div class="kpi-value">${allOrders.toLocaleString('en-US')}<span class="sep">/</span><span class="ready">${readyOrders.toLocaleString('en-US')}</span></div></div>
+  <div class="kpi highlight"><div class="kpi-label">Revenue (USD equiv.)</div><div class="kpi-value">${fmtUSD(allRev)}<span class="sep">/</span><span class="ready">${fmtUSD(readyRev)}</span></div></div>
+  <div class="kpi momentec"><div class="kpi-label">Momentec-CHL</div><div class="kpi-value">${fmtUSD(momentecUSD)}</div><div style="font-size:11px;color:#9ca3af;margin-top:4px">${momentecOrders} orders · excl. from totals</div></div>
+`;
+
+const usdByCompany = {};
+dataEx.forEach(d => { usdByCompany[d.company] = (usdByCompany[d.company]||0) + d.usd; });
+const sorted = Object.entries(usdByCompany).sort((a,b) => b[1]-a[1]).slice(0,10);
+new Chart(document.getElementById('barChart'), {
+  type: 'bar',
+  data: { labels: sorted.map(x=>x[0]), datasets: [{ data: sorted.map(x=>Math.round(x[1])), backgroundColor: '#3b82f6', borderRadius: 4 }] },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { ticks: { callback: v => v.toLocaleString(), font: { size: 11 } }, grid: { color: '#f3f4f6' } },
+      x: { ticks: { font: { size: 11 }, maxRotation: 30 }, grid: { display: false } }
+    }
+  }
+});
+
+function stageBadge(s) {
+  return s === 'All'
+    ? `<span class="badge">${s}</span>`
+    : `<span class="badge ${s}">${s.replace(/_/g,' ')}</span>`;
+}
+function typeBadge(t) {
+  const c = t==='Brands' ? 'type-brand' : t==='Merchants' ? 'type-merchant' : 'type-platform';
+  return `<span class="badge ${c}">${t}</span>`;
+}
+
+new gridjs.Grid({
+  columns: [
+    { name: 'Company', sort: true },
+    { name: 'Type',    sort: true, formatter: cell => gridjs.html(typeBadge(cell)) },
+    { name: 'Stage',   sort: true, formatter: cell => gridjs.html(stageBadge(cell)) },
+    { name: 'Orders',  sort: true },
+    { name: 'Curr',    sort: true },
+    { name: 'Amount',  sort: true, attributes: () => ({ style: 'text-align:right' }), formatter: cell => fmtAmt(cell) },
+    { name: 'USD Equiv', sort: true, attributes: () => ({ style: 'text-align:right' }), formatter: cell => fmtUSD(cell) }
+  ],
+  data: data.map(d => [d.company, d.type, d.stage, d.orders, d.currency, d.amount, Math.round(d.usd)]),
+  search: true, sort: true,
+  style: { th: { background: '#f9fafb', fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' },
+           td: { fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' } }
+}).render(document.getElementById('grid'));
+</script>
+</body>
+</html>
