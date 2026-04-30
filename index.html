@@ -13,7 +13,9 @@
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; background: #f8f9fa; color: #1a1a2e; padding: 24px; }
   h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
   .meta { font-size: 12px; color: #6b7280; margin-bottom: 4px; }
-  .fx-note { font-size: 11px; color: #9ca3af; margin-bottom: 20px; }
+  .fx-note { font-size: 11px; color: #9ca3af; margin-bottom: 6px; }
+  .kpi-legend { font-size: 11px; color: #6b7280; margin-bottom: 16px; }
+  .kpi-legend span.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #059669; margin-right: 4px; vertical-align: middle; }
   .kpi-row { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
   .kpi { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 18px; flex: 1; min-width: 160px; }
   .kpi-label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
@@ -51,6 +53,7 @@
 <h1>Uninvoiced Orders</h1>
 <p class="meta">stripe_invoice_status = NULL · excl. order_cancel &amp; quote_rejected · Brands per stage, Merchants aggregated</p>
 <p class="fx-note">Data as of <strong>30 Apr 2026</strong> · USD equiv: CAD 0.73 · DKK 0.145 · EUR 1.09 · GBP 1.27 · SEK 0.096 · NOK 0.095 · CHF 1.12</p>
+<p class="kpi-legend"><span class="dot"></span> Green = ready to invoice &nbsp;·&nbsp; All / <span style="color:#059669;font-weight:600">Ready to invoice</span></p>
 <div id="kpis" class="kpi-row"></div>
 <div class="section">
   <div class="section-title">Top Companies by USD Equivalent (excl. Momentec-CHL)</div>
@@ -65,8 +68,8 @@ const FX = { USD:1, CAD:0.73, DKK:0.145, EUR:1.09, GBP:1.27, SEK:0.096, NOK:0.09
 const toUSD = (a, c) => a * (FX[c] || 1);
 const RAW = [
   ["Cwench Hydration","Brands","in_production",1,"CAD",11832],
-  ["Hummel Pro NA","Brands","in_production",135,"USD",39176.9],
-  ["Hummel Pro NA","Brands","completed",279,"USD",31698.1],
+  ["Hummel Pro NA","Brands","in_production",129,"USD",39166.1],
+  ["Hummel Pro NA","Brands","completed",285,"USD",31708.9],
   ["Hummel Pro NA","Brands","completed",1,"DKK",7191],
   ["Hummel Pro NA","Brands","order_approve",27,"USD",2381.8],
   ["Hummel Pro NA","Brands","on_hold",1,"USD",799.2],
@@ -108,7 +111,7 @@ const RAW = [
   ["Duguay","Merchants","All",2,"USD",132],
   ["Dynasty Curling Ltd.","Merchants","All",8,"CAD",7519.3],
   ["Entripy","Merchants","All",1,"CAD",7145.6],
-  ["EVOLUTION Sports Excellence","Merchants","All",93,"CAD",42952.54],
+  ["EVOLUTION Sports Excellence","Merchants","All",94,"CAD",42981.05],
   ["EXPÉRIENCE BASEBALL","Merchants","All",4,"CAD",7560.8],
   ["Extreme Hockey Inc","Merchants","All",1,"CAD",190],
   ["Front Row Sports US","Merchants","All",2,"USD",1488.51],
@@ -125,7 +128,7 @@ const RAW = [
   ["Kix N' Stix","Merchants","All",1,"USD",38.43],
   ["Ladner's Source for Sports","Merchants","All",5,"CAD",1721],
   ["Lavoie Source for Sports","Merchants","All",8,"CAD",3857.2],
-  ["London Sports Excellence","Merchants","All",16,"CAD",12863.37],
+  ["London Sports Excellence","Merchants","All",17,"CAD",12888.37],
   ["Long Island Hockey Co.","Merchants","All",2,"USD",1165.27],
   ["Magasin Baseball Town","Merchants","All",1,"CAD",1014],
   ["McTaggarts","Merchants","All",1,"CAD",90],
@@ -133,7 +136,7 @@ const RAW = [
   ["MVP Custom","Merchants","All",5,"EUR",192.94],
   ["MVS Design","Merchants","All",1,"CAD",144.6],
   ["Olympiansports","Merchants","All",8,"CAD",1929.13],
-  ["Olympic Source For Sports","Merchants","All",1,"CAD",900],
+  ["Olympic Source For Sports","Merchants","All",2,"CAD",1251.47],
   ["Overlander Sports","Merchants","All",2,"CAD",940],
   ["Play It Again Sports Thunder Bay","Merchants","All",1,"CAD",5000],
   ["plyr athletics","Merchants","All",2,"CAD",1395],
@@ -173,10 +176,7 @@ const isReady = r => (r[1] === 'Brands' && r[2] === 'completed') || r[1] === 'Me
 const data    = RAW.map(r => ({ company:r[0], type:r[1], stage:r[2], orders:r[3], currency:r[4], amount:r[5], usd: toUSD(r[5],r[4]) }));
 const momentec = data.filter(d => d.company === 'Momentec-CHL');
 const dataEx   = data.filter(d => d.company !== 'Momentec-CHL');
-
-const fmtUSD = n => Math.round(n).toLocaleString('en-US');
-const fmtAmt = n => Math.round(n).toLocaleString('en-US');
-
+const fmt      = n => Math.round(n).toLocaleString('en-US');
 const allCompanies   = [...new Set(dataEx.map(d => d.company))];
 const readyCompanies = [...new Set(dataEx.filter(isReady).map(d => d.company))];
 const allOrders      = dataEx.reduce((s,d) => s+d.orders, 0);
@@ -185,14 +185,12 @@ const allRev         = dataEx.reduce((s,d) => s+d.usd, 0);
 const readyRev       = dataEx.filter(isReady).reduce((s,d) => s+d.usd, 0);
 const momentecUSD    = momentec.reduce((s,d) => s+d.usd, 0);
 const momentecOrders = momentec.reduce((s,d) => s+d.orders, 0);
-
 document.getElementById('kpis').innerHTML = `
   <div class="kpi"><div class="kpi-label">Companies</div><div class="kpi-value">${allCompanies.length}<span class="sep">/</span><span class="ready">${readyCompanies.length}</span></div></div>
   <div class="kpi"><div class="kpi-label">Total Orders</div><div class="kpi-value">${allOrders.toLocaleString('en-US')}<span class="sep">/</span><span class="ready">${readyOrders.toLocaleString('en-US')}</span></div></div>
-  <div class="kpi highlight"><div class="kpi-label">Revenue (USD equiv.)</div><div class="kpi-value">${fmtUSD(allRev)}<span class="sep">/</span><span class="ready">${fmtUSD(readyRev)}</span></div></div>
-  <div class="kpi momentec"><div class="kpi-label">Momentec-CHL</div><div class="kpi-value">${fmtUSD(momentecUSD)}</div><div style="font-size:11px;color:#9ca3af;margin-top:4px">${momentecOrders} orders · excl. from totals</div></div>
+  <div class="kpi highlight"><div class="kpi-label">Revenue (USD equiv.)</div><div class="kpi-value">${fmt(allRev)}<span class="sep">/</span><span class="ready">${fmt(readyRev)}</span></div></div>
+  <div class="kpi momentec"><div class="kpi-label">Momentec-CHL</div><div class="kpi-value">${fmt(momentecUSD)}</div><div style="font-size:11px;color:#9ca3af;margin-top:4px">${momentecOrders.toLocaleString('en-US')} orders · excl. from totals</div></div>
 `;
-
 const usdByCompany = {};
 dataEx.forEach(d => { usdByCompany[d.company] = (usdByCompany[d.company]||0) + d.usd; });
 const sorted = Object.entries(usdByCompany).sort((a,b) => b[1]-a[1]).slice(0,10);
@@ -203,22 +201,13 @@ new Chart(document.getElementById('barChart'), {
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { display: false } },
     scales: {
-      y: { ticks: { callback: v => v.toLocaleString(), font: { size: 11 } }, grid: { color: '#f3f4f6' } },
+      y: { ticks: { callback: v => v.toLocaleString('en-US'), font: { size: 11 } }, grid: { color: '#f3f4f6' } },
       x: { ticks: { font: { size: 11 }, maxRotation: 30 }, grid: { display: false } }
     }
   }
 });
-
-function stageBadge(s) {
-  return s === 'All'
-    ? `<span class="badge">${s}</span>`
-    : `<span class="badge ${s}">${s.replace(/_/g,' ')}</span>`;
-}
-function typeBadge(t) {
-  const c = t==='Brands' ? 'type-brand' : t==='Merchants' ? 'type-merchant' : 'type-platform';
-  return `<span class="badge ${c}">${t}</span>`;
-}
-
+function stageBadge(s) { return s==='All' ? `<span class="badge">${s}</span>` : `<span class="badge ${s}">${s.replace(/_/g,' ')}</span>`; }
+function typeBadge(t) { const c=t==='Brands'?'type-brand':t==='Merchants'?'type-merchant':'type-platform'; return `<span class="badge ${c}">${t}</span>`; }
 new gridjs.Grid({
   columns: [
     { name: 'Company', sort: true },
@@ -226,13 +215,15 @@ new gridjs.Grid({
     { name: 'Stage',   sort: true, formatter: cell => gridjs.html(stageBadge(cell)) },
     { name: 'Orders',  sort: true },
     { name: 'Curr',    sort: true },
-    { name: 'Amount',  sort: true, attributes: () => ({ style: 'text-align:right' }), formatter: cell => fmtAmt(cell) },
-    { name: 'USD Equiv', sort: true, attributes: () => ({ style: 'text-align:right' }), formatter: cell => fmtUSD(cell) }
+    { name: 'Amount',  sort: true, attributes: () => ({ style: 'text-align:right' }), formatter: cell => fmt(cell) },
+    { name: 'USD Equiv', sort: true, attributes: () => ({ style: 'text-align:right' }), formatter: cell => fmt(cell) }
   ],
   data: data.map(d => [d.company, d.type, d.stage, d.orders, d.currency, d.amount, Math.round(d.usd)]),
   search: true, sort: true,
-  style: { th: { background: '#f9fafb', fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' },
-           td: { fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' } }
+  style: {
+    th: { background: '#f9fafb', fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' },
+    td: { fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' }
+  }
 }).render(document.getElementById('grid'));
 </script>
 </body>
